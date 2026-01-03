@@ -67,7 +67,7 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-4985e4ee'], (function (workbox) { 'use strict';
+define(['./workbox-8e29a7e0'], (function (workbox) { 'use strict';
 
   self.skipWaiting();
   workbox.clientsClaim();
@@ -82,23 +82,48 @@ define(['./workbox-4985e4ee'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.us995vk546o"
+    "revision": "0.mnjejm3qbdo"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(/R\.bin\.(data|js|wasm)$/, new workbox.CacheFirst({
+  workbox.registerRoute(/R\.bin\.js$/, new workbox.NetworkOnly(), 'GET');
+  workbox.registerRoute(/^https:\/\/webr\.r-wasm\.org\/.*\.js$/, new workbox.NetworkOnly(), 'GET');
+  workbox.registerRoute(/R\.bin\.(data|wasm)$/, new workbox.CacheFirst({
     "cacheName": "R-bin-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 100,
       maxAgeSeconds: 2592000
     })]
   }), 'GET');
-  workbox.registerRoute(/^https:\/\/webr\.r-wasm\.org\//, new workbox.NetworkFirst({
+  workbox.registerRoute(/^https:\/\/webr\.r-wasm\.org\/(?!.*\.js$).*/, new workbox.CacheFirst({
     "cacheName": "r-wasm-cache",
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 100,
+      maxEntries: 500,
+      maxAgeSeconds: 2592000
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\.tar\.gz$/, new workbox.CacheFirst({
+    "cacheName": "r-packages-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 200,
+      maxAgeSeconds: 2592000
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\.data$/, new workbox.CacheFirst({
+    "cacheName": "webr-data-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 200,
+      maxAgeSeconds: 2592000
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\.metadata$/, new workbox.CacheFirst({
+    "cacheName": "webr-metadata-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 200,
       maxAgeSeconds: 2592000
     })]
   }), 'GET');
@@ -111,6 +136,13 @@ define(['./workbox-4985e4ee'], (function (workbox) { 'use strict';
   }), 'GET');
   workbox.registerRoute("https://webr-1257749604.cos.ap-shanghai.myqcloud.com/vfs/library.js.metadata", new workbox.CacheFirst({
     "cacheName": "library-metadata-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 100,
+      maxAgeSeconds: 2592000
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\.(wasm|js\.map)$/, new workbox.CacheFirst({
+    "cacheName": "webr-assets-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 100,
       maxAgeSeconds: 2592000

@@ -27,6 +27,12 @@
               <n-tab-pane name="plots" tab="Plots">
                 <Plots />
               </n-tab-pane>
+              <n-tab-pane name="packages" tab="Packages">
+                <Packages />
+              </n-tab-pane>
+              <n-tab-pane name="cache" tab="缓存">
+                <CacheManager />
+              </n-tab-pane>
             </n-tabs>
           </template>
         </n-split>
@@ -42,6 +48,8 @@ import Files from '@/components/Files.vue'
 import Editors from '@/components/Editors.vue'
 import Term from '@/components/Term.vue'
 import Env from '@/components/Env.vue'
+import CacheManager from '@/components/CacheManager.vue'
+import Packages from '@/components/Packages.vue'
 import mitt from 'mitt';
 const store = useStore()
 const emitter = mitt();

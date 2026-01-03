@@ -147,7 +147,10 @@ async function runR(code) {
     shelter.purge()
     return result
   } catch (error) {
-    message.error('runR error')
+    console.error('runR 执行错误:', error)
+    message.error(`执行 R 代码时出错: ${error.message || '未知错误'}`)
+    // 抛出错误，让调用者处理
+    throw error
   }
 }
 
@@ -165,26 +168,60 @@ async function clearLs() {
 onMounted(async () => {
   timerId.value = setInterval(saveToIndexDB, 1000 * 60 * 2)
 
+  // 等待 WebR 初始化完成
+  await waitForWebRInit()
+  
+  // 加载 R 数据
+  await loadRData()
+})
+
+// 等待 WebR 初始化完成
+async function waitForWebRInit() {
+  // 如果已经初始化，直接返回
+  if (webR.objs && webR.objs.globalEnv) {
+    return
+  }
+  
+  // 轮询检查，最多等待 10 秒
+  const maxWait = 10000 // 10 秒
+  const interval = 100 // 每 100ms 检查一次
+  const startTime = Date.now()
+  
+  while (Date.now() - startTime < maxWait) {
+    if (webR.objs && webR.objs.globalEnv) {
+      return
+    }
+    await new Promise(resolve => setTimeout(resolve, interval))
+  }
+  
+  throw new Error('WebR 初始化超时')
+}
+
+// 加载 R 数据
+async function loadRData() {
   try {
-    await webR.init()
     const RData = await fetchData('__RData')
     if (RData) {
       await webR.FS.writeFile('/obj.RData', RData.data)
       await webR.evalRVoid('load("/obj.RData")')
       await webR.FS.unlink("/obj.RData")
     }
+    
     const res = await runR(code.value.get_ls)
-    console.log(res)
-    const objs = await res.result.toJs()
-    updateObjs({ objs })
-    webR.destroy(res)
-    webR.destroy(objs)
-
-    console.log('加载RData成功')
+    if (res && res.result) {
+      const objs = await res.result.toJs()
+      updateObjs({ objs })
+      webR.destroy(res)
+      webR.destroy(objs)
+      console.log('加载RData成功')
+    } else {
+      console.warn('runR 返回结果为空，跳过对象列表更新')
+    }
   } catch (error) {
     console.error('加载RData出错', error);
+    message.error(`加载 R 环境数据失败: ${error.message || '未知错误'}`)
   }
-})
+}
 onUnmounted(() => {
   if (timerId.value) {
     clearInterval(timerId.value);

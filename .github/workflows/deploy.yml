@@ -7,7 +7,7 @@ on:
   # 推送到主分支时触发
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build:

@@ -133,19 +133,6 @@ webr/
 - 搜索包
 - 显示包版本信息
 
-## 🔧 配置说明
-
-### 跨域隔离配置
-
-为了获得完整功能（支持中断 R 代码），需要启用跨域隔离。开发环境已自动配置，生产环境需要添加响应头：
-
-```
-Cross-Origin-Embedder-Policy: require-corp
-Cross-Origin-Opener-Policy: same-origin
-```
-
-详细配置说明请查看 [docs/WEBR_CHANNEL_CONFIG.md](docs/WEBR_CHANNEL_CONFIG.md)
-
 ## 📝 开发说明
 
 ### 添加新的 R 包

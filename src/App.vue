@@ -2,128 +2,130 @@
   <n-theme-editor>
     <n-config-provider :theme-overrides="themeOverrides" :theme="darkMode ? darkTheme : undefined">
       <n-message-provider>
-        <n-layout position="absolute" has-sider style="height: 100%;">
-          <n-layout-sider bordered collapse-mode="width" :collapsed-width="64" trigger-style=""
-            collapsed-trigger-style="" :width="200" :collapsed="collapsed" show-trigger="arrow-circle"
-            @collapse="collapsed = true" @expand="collapsed = false">
-            <n-menu v-model:value="activeKey" :collapsed="collapsed" :indent="20" :collapsed-width="64"
-              :collapsed-icon-size="22" :icon-size="22" :options="menuOptions" />
-            <n-space justify="center">
-              <n-switch v-model:value="darkMode" />
-            </n-space>
-          </n-layout-sider>
-          <router-view v-slot="{ Component }">
-            <keep-alive>
-              <component :is="Component" />
-            </keep-alive>
-          </router-view>
-        </n-layout>
+        <n-loading-bar-provider>
+          <AppContent />
+        </n-loading-bar-provider>
       </n-message-provider>
     </n-config-provider>
   </n-theme-editor>
 </template>
 
 <script setup>
-import { NThemeEditor, NConfigProvider, darkTheme } from 'naive-ui'
-import { h, ref, inject, onMounted } from "vue";
-import { RouterLink } from 'vue-router'
-import { NIcon, useMessage } from "naive-ui";
-import { CodeSharp, InsertChartOutlinedTwotone } from "@vicons/material";
+import { NThemeEditor, NConfigProvider, darkTheme, NLoadingBarProvider } from 'naive-ui'
+import { ref, provide, watch, computed, onMounted } from "vue";
 import { useStore } from 'vuex'
-
-const darkMode = ref(false)
-provide('darkMode', darkMode)
+import AppContent from './components/AppContent.vue'
+import { fetchData } from '@/use/indexDB'
 
 const store = useStore()
-function updateFileList(payload) { store.commit('updateFileList', payload) }
 
-function renderIcon(icon) {
-  return () => h(NIcon, null, { default: () => h(icon) });
-}
+// 暗黑模式，从 store 读取，或使用默认值
+const darkMode = ref(store.state.settings?.darkMode || false)
+provide('darkMode', darkMode)
+
+// 监听 store 中的配置变化
+watch(
+  () => store.state.settings?.darkMode,
+  (newValue) => {
+    if (newValue !== undefined) {
+      darkMode.value = newValue
+    }
+  },
+  { immediate: true }
+)
+
+// 加载保存的配置
+onMounted(async () => {
+  try {
+    const saved = await fetchData('__app_settings')
+    if (saved && saved.data) {
+      // 确保数据是纯对象（不是响应式对象）
+      const settingsData = JSON.parse(JSON.stringify(saved.data))
+      store.commit('updateSettings', settingsData)
+      if (settingsData.darkMode !== undefined) {
+        darkMode.value = settingsData.darkMode
+      }
+    }
+  } catch (error) {
+    console.error('加载设置失败:', error)
+  }
+})
+
+function updateFileList(payload) { store.commit('updateFileList', payload) }
+provide('updateFileList', updateFileList)
 
 const themeOverrides = {
   "common": {
+    "primaryColor": "#388DCFFF",
     "primaryColorHover": "#2DB7C9FF",
-    "primaryColor": "#388DCFFF"
+    "primaryColorPressed": "#1A9BB3FF",
+    "primaryColorSuppl": "#4A9DD5FF",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+    "fontFamilyMono": "'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Consolas', 'Courier New', monospace",
+    "borderRadius": "6px",
+    "borderRadiusSmall": "4px",
+    "borderRadiusMedium": "6px",
+    "borderRadiusLarge": "8px",
+    "heightSmall": "28px",
+    "heightMedium": "34px",
+    "heightLarge": "40px",
+    "fontSizeSmall": "12px",
+    "fontSizeMedium": "14px",
+    "fontSizeLarge": "16px",
+    "fontWeight": "400",
+    "fontWeightStrong": "500",
+    "opacity1": "0.82",
+    "opacity2": "0.72",
+    "opacity3": "0.52",
+    "opacity4": "0.38",
+    "opacity5": "0.24",
+    "opacityDisabled": "0.5"
+  },
+  "Card": {
+    "borderRadius": "8px",
+    "color": "#FFFFFF",
+    "colorModal": "#FFFFFF",
+    "colorTarget": "#FFFFFF",
+    "boxShadow": "0 2px 8px 0 rgba(0, 0, 0, 0.08)",
+    "boxShadowHover": "0 4px 12px 0 rgba(0, 0, 0, 0.12)",
+    "colorEmbedded": "#FFFFFF",
+    "colorEmbeddedModal": "#FFFFFF",
+    "colorEmbeddedPopover": "#FFFFFF"
+  },
+  "DataTable": {
+    "borderRadius": "6px"
+  },
+  "Input": {
+    "borderRadius": "6px"
+  },
+  "Button": {
+    "borderRadiusSmall": "4px",
+    "borderRadiusMedium": "6px",
+    "borderRadiusLarge": "8px",
+    "fontWeight": "500",
+    "fontWeightText": "400",
+    "fontWeightGhost": "500",
+    "heightSmall": "28px",
+    "heightMedium": "34px",
+    "heightLarge": "40px"
+  },
+  "Menu": {
+    "borderRadius": "6px",
+    "itemBorderRadius": "6px"
+  },
+  "Tabs": {
+    "tabBorderRadius": "6px",
+    "panePaddingSmall": "8px",
+    "panePaddingMedium": "12px",
+    "panePaddingLarge": "16px"
+  },
+  "Select": {
+    "borderRadius": "6px"
+  },
+  "Switch": {
+    "railBorderRadius": "12px",
+    "buttonBorderRadius": "10px"
   }
 }
-const menuOptions = [
-  {
-    label: () => h(RouterLink, { to: { name: "Home" } }, { default: () => "编辑" }),
-    key: "home",
-    icon: renderIcon(CodeSharp)
-  },
-  {
-    label: () => h(RouterLink, { to: { name: "Chart" } }, { default: () => "图表" }),
-    key: "chart",
-    icon: renderIcon(InsertChartOutlinedTwotone)
-  }
-];
-
-const activeKey = ref(null)
-const collapsed = ref(true)
-provide('collapsed', collapsed)
-const webR = inject('webR')
-const webRInitializing = ref(true)
-provide('webRInitializing', webRInitializing)
-
-onMounted(async () => {
-  // 在 onMounted 中获取 message，确保 n-message-provider 已经挂载
-  const message = useMessage()
-  const loadingBar = useLoadingBar()
-  
-  try {
-    loadingBar.start()
-    webRInitializing.value = true
-    
-    // 检查跨域隔离状态，自动选择通信通道类型
-    // channelType: 0 = SharedArrayBuffer (需要跨域隔离), 1 = PostMessage (不需要跨域隔离)
-    const isCrossOriginIsolated = self.crossOriginIsolated === true
-    const channelType = isCrossOriginIsolated ? 0 : 1
-    
-    if (!isCrossOriginIsolated) {
-      console.warn('页面未启用跨域隔离，使用 PostMessage 通道。某些功能可能受限。')
-      message.warning('使用 PostMessage 通道，部分功能可能受限', { duration: 3000 })
-    }
-    
-    await webR.init({ channelType })
-    loadingBar.finish()
-    webRInitializing.value = false
-    const text =
-      `demo(graphics)
-a<-1:10
-b<-mtcars
-d<-list(c=4)
-e<-function(x){x}
-f<-3
-m<-matrix(1:100)
-`;
-    const data = new TextEncoder().encode(text);
-    await webR.FS.writeFile('/home/web_user/code.R', data)
-    await webR.evalRVoid('webr::mount(mountpoint = "/home/library",source = "https://webr-1257749604.cos.ap-shanghai.myqcloud.com/vfs/library.data")')
-    await webR.evalR('.libPaths(c("/home/library",.libPaths()))')
-    await webR.evalRVoid("webr::shim_install()")
-    const fileList = await webR.FS.lookupPath('/')
-    updateFileList({ fileList })
-    message.success('WebR 初始化成功', { duration: 2000 })
-  } catch (error) {
-    loadingBar.error()
-    webRInitializing.value = false
-    console.error('WebR 初始化失败:', error)
-    
-    // 根据错误类型提供不同的提示
-    let errorMessage = 'WebR 初始化失败'
-    if (error.message) {
-      if (error.message.includes('Failed to execute')) {
-        errorMessage = 'WebR 初始化失败：可能是缓存问题，请在"缓存"标签中清除所有缓存后重试'
-      } else if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
-        errorMessage = 'WebR 初始化失败：网络错误，请检查网络连接'
-      } else {
-        errorMessage = `WebR 初始化失败：${error.message}`
-      }
-    }
-    
-    message.error(errorMessage, { duration: 5000 })
-  }
-})
+provide('themeOverrides', themeOverrides)
 </script>

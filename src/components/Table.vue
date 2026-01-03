@@ -25,8 +25,7 @@
 
 <script setup>
 import { Export, ChatBot, Copy } from "@vicons/carbon"
-import { VueMonacoEditor } from '@guolao/vue-monaco-editor'
-import { ref, shallowRef, inject, onMounted, defineProps, watch, onUnmounted, h } from 'vue'
+import { ref, shallowRef, inject, onMounted, watch, onUnmounted, h } from 'vue'
 import { useStore } from 'vuex'
 import { useMessage, NTooltip, NGradientText } from 'naive-ui'
 import { useSize } from '@/use/size.js'
@@ -114,6 +113,10 @@ onMounted(async () => {
 }
 
 .toolbar {
-    border-bottom: 1px solid #f3f3f356;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 8px 12px;
+    background-color: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    transition: all 0.2s ease;
 }
 </style>

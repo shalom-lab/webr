@@ -21,7 +21,7 @@
 
 <script setup>
 import Canvas from "@/components/Canvas.vue"
-import { ref, computed, defineProps } from "vue"
+import { ref, computed } from "vue"
 import { useStore } from 'vuex'
 import { Download } from "@vicons/carbon"
 const props = defineProps({
@@ -76,11 +76,19 @@ const startResize = (event) => {
 
 .resize-handle {
     position: absolute;
-    width: 10px;
-    height: 10px;
-    background-color: black;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, rgba(56, 141, 207, 0.8) 0%, rgba(45, 183, 201, 0.8) 100%);
+    border-radius: 4px 0 12px 0;
     bottom: 0;
     right: 0;
     cursor: se-resize;
+    box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.resize-handle:hover {
+    background: linear-gradient(135deg, rgba(56, 141, 207, 1) 0%, rgba(45, 183, 201, 1) 100%);
+    transform: scale(1.1);
 }
 </style>

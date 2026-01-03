@@ -1,12 +1,103 @@
+/* 全局样式 - 统一设计系统 */
+
+* {
+  box-sizing: border-box;
+}
+
 body {
-    width: 100%;
-    height: 703px;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  background-color: #f5f5f7;
 }
 
 #app {
-    height: 100%;
+  width: 100%;
+  height: 100%;
 }
 
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* 深色模式滚动条 */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Carousel 箭头颜色 */
 .n-carousel .n-carousel__arrow svg {
-    color: black;
+  color: inherit;
+}
+
+/* 统一的工具栏样式 */
+.toolbar {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+/* 卡片容器统一样式 */
+.box {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: transparent;
+}
+
+/* 过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 文本选择样式 */
+::selection {
+  background-color: rgba(56, 141, 207, 0.2);
+  color: inherit;
+}
+
+/* 链接样式 */
+a {
+  color: #388dcf;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: #2db7c9;
 }

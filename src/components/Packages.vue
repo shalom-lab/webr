@@ -5,6 +5,9 @@
         <n-button text @click="refreshPackages">
           <n-icon size="20" :component="RefreshOutlined" />
         </n-button>
+        <n-checkbox v-model:checked="showLoadedOnly">
+          只显示已加载的包
+        </n-checkbox>
       </n-space>
       <n-space justify="end">
         <n-input
@@ -21,6 +24,7 @@
         :data="filteredPackages"
         :loading="loading"
         :pagination="pagination"
+        size="small"
         virtual-scroll
         :scrollbar-props="{ trigger: 'none' }"
       >
@@ -34,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted, h } from 'vue'
+import { ref, computed, reactive, inject, onMounted, h } from 'vue'
 import { NDataTable, NCheckbox, NIcon, NButton, NInput, NSpace, NEmpty, useMessage } from 'naive-ui'
 import { RefreshOutlined } from '@vicons/material'
 
@@ -45,9 +49,16 @@ const packages = ref([])
 const loadedPackages = ref([])
 const loading = ref(false)
 const searchText = ref('')
+const showLoadedOnly = ref(false)
 
 // 等待 WebR 初始化完成
 async function waitForWebRInit() {
+  // 检查 webR 实例是否存在
+  if (!webR) {
+    throw new Error('WebR 实例不存在')
+  }
+  
+  // 如果已经初始化，直接返回
   if (webR.objs && webR.objs.globalEnv) {
     return
   }
@@ -57,20 +68,28 @@ async function waitForWebRInit() {
   const startTime = Date.now()
   
   while (Date.now() - startTime < maxWait) {
-    if (webR.objs && webR.objs.globalEnv) {
+    // 更严格的检查
+    if (webR && webR.objs && webR.objs.globalEnv) {
       return
     }
     await new Promise(resolve => setTimeout(resolve, interval))
   }
   
-  throw new Error('WebR 初始化超时')
+  throw new Error('WebR 初始化超时，请刷新页面重试')
 }
 
 // 执行 R 代码
 async function runR(code) {
   try {
-    if (!webR.objs || !webR.objs.globalEnv) {
-      throw new Error('WebR 尚未初始化')
+    // 更严格的检查
+    if (!webR) {
+      throw new Error('WebR 实例不存在')
+    }
+    if (!webR.objs) {
+      throw new Error('WebR 对象未初始化，请等待初始化完成')
+    }
+    if (!webR.objs.globalEnv) {
+      throw new Error('WebR 全局环境未初始化，请等待初始化完成')
     }
     
     const shelter = await new webR.Shelter()
@@ -94,18 +113,17 @@ async function loadInstalledPackages() {
   try {
     loading.value = true
     
-    // 获取已安装的包信息
-    const code = `
-      webr::shim_install()
-      installed_pkgs <- installed.packages()
-      # 转换为 dataframe，只保留 Package 和 Version 列
-      pkg_df <- data.frame(
-        Package = rownames(installed_pkgs),
-        Version = installed_pkgs[, "Version"],
-        stringsAsFactors = FALSE
-      )
-      pkg_df
-    `
+    // 获取已安装的包信息（使用 local 函数避免污染全局环境）
+    const code = `webr::shim_install()
+local({
+  installed_pkgs <- installed.packages()
+  pkg_df <- data.frame(
+    Package = rownames(installed_pkgs),
+    Version = installed_pkgs[, "Version"],
+    stringsAsFactors = FALSE
+  )
+  pkg_df
+})`
     
     const result = await runR(code)
     if (result && result.result) {
@@ -203,35 +221,53 @@ async function loadInstalledPackages() {
 // 获取已加载的包列表
 async function loadLoadedPackages() {
   try {
-    const code = `
-      webr::shim_install()
-      .packages()
-    `
+    // 使用 evalRString 直接获取字符串数组
+    const code = `webr::shim_install(); paste(.packages(), collapse = ",")`
+    const loadedStr = await webR.evalRString(code)
     
-    const result = await runR(code)
-    if (result && result.result) {
-      const loaded = await result.result.toJs()
-      
-      if (Array.isArray(loaded)) {
-        loadedPackages.value = loaded
-      } else if (loaded && typeof loaded === 'object') {
-        // 如果是对象，尝试提取数组
-        const keys = Object.keys(loaded)
-        if (keys.length > 0 && Array.isArray(loaded[keys[0]])) {
-          loadedPackages.value = loaded[keys[0]]
-        } else {
-          loadedPackages.value = []
-        }
-      } else {
-        loadedPackages.value = []
-      }
-      
-      webR.destroy(result)
-      if (loaded) webR.destroy(loaded)
+    if (loadedStr) {
+      // 将逗号分隔的字符串转换为数组
+      loadedPackages.value = loadedStr.split(',').map(pkg => pkg.trim()).filter(Boolean)
+      console.log('已加载的包:', loadedPackages.value)
+    } else {
+      loadedPackages.value = []
     }
   } catch (error) {
     console.error('加载已加载包列表失败:', error)
-    loadedPackages.value = []
+    // 尝试备用方法
+    try {
+      const code = `.packages()`
+      const result = await runR(code)
+      if (result && result.result) {
+        const loaded = await result.result.toJs()
+        console.log('备用方法获取的数据:', loaded)
+        
+        let loadedArray = []
+        if (Array.isArray(loaded)) {
+          loadedArray = loaded
+        } else if (loaded && typeof loaded === 'object') {
+          // 如果是对象，尝试提取数组
+          const keys = Object.keys(loaded)
+          if (keys.length > 0 && Array.isArray(loaded[keys[0]])) {
+            loadedArray = loaded[keys[0]]
+          } else if (loaded.values && Array.isArray(loaded.values)) {
+            // WebR 返回的可能是嵌套结构
+            loadedArray = loaded.values.flatMap(v => 
+              Array.isArray(v) ? v : (v.values ? v.values : [])
+            )
+          }
+        }
+        
+        loadedPackages.value = loadedArray.map(pkg => String(pkg || '').trim()).filter(Boolean)
+        console.log('备用方法解析结果:', loadedPackages.value)
+        
+        webR.destroy(result)
+        if (loaded) webR.destroy(loaded)
+      }
+    } catch (fallbackError) {
+      console.error('备用方法也失败:', fallbackError)
+      loadedPackages.value = []
+    }
   }
 }
 
@@ -246,15 +282,29 @@ async function togglePackage(packageName, checked) {
   try {
     if (checked) {
       // 加载包
-      const code = `library("${packageName}", character.only = TRUE)`
-      await runR(code)
+      const code = `library("${packageName}")`
+      await webR.evalRVoid(code)
       message.success(`已加载包: ${packageName}`)
     } else {
-      // 卸载包 - 使用字符串形式更安全
-      const code = `detach("package:${packageName}", unload = TRUE)`
-      await runR(code)
+      // 卸载包 - 尝试多种方式
+      try {
+        // 方法1: detach
+        const code = `detach("package:${packageName}", unload = TRUE)`
+        await webR.evalRVoid(code)
+      } catch (detachError) {
+        // 如果 detach 失败，尝试 unloadNamespace
+        console.warn('detach 失败，尝试 unloadNamespace:', detachError)
+        try {
+          await webR.evalRVoid(`unloadNamespace("${packageName}")`)
+        } catch (unloadError) {
+          throw new Error(`无法卸载包 ${packageName}: ${detachError.message}`)
+        }
+      }
       message.success(`已卸载包: ${packageName}`)
     }
+    
+    // 等待一下，确保操作完成
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     // 刷新已加载的包列表
     await loadLoadedPackages()
@@ -268,13 +318,23 @@ async function togglePackage(packageName, checked) {
 
 // 过滤包列表
 const filteredPackages = computed(() => {
-  if (!searchText.value) {
-    return packages.value
+  let result = packages.value
+  
+  // 如果勾选了"只显示已加载的包"，先过滤已加载的包
+  if (showLoadedOnly.value) {
+    const loadedSet = new Set(loadedPackages.value)
+    result = result.filter(pkg => loadedSet.has(pkg.Package))
   }
-  const search = searchText.value.toLowerCase()
-  return packages.value.filter(pkg => 
-    pkg.Package.toLowerCase().includes(search)
-  )
+  
+  // 如果有搜索文本，再进行搜索过滤
+  if (searchText.value) {
+    const search = searchText.value.toLowerCase()
+    result = result.filter(pkg => 
+      pkg.Package.toLowerCase().includes(search)
+    )
+  }
+  
+  return result
 })
 
 // 表格列定义
@@ -284,11 +344,13 @@ const columns = computed(() => [
     key: 'loaded',
     width: 80,
     render(row) {
-      const isLoaded = loadedPackages.value.includes(row.Package)
+      // 确保比较时使用字符串
+      const packageName = String(row.Package || '')
+      const isLoaded = loadedPackages.value.includes(packageName)
       return h(NCheckbox, {
         checked: isLoaded,
-        onUpdateChecked: (checked) => {
-          togglePackage(row.Package, checked)
+        onUpdateChecked: async (checked) => {
+          await togglePackage(packageName, checked)
         }
       })
     }
@@ -311,13 +373,16 @@ const columns = computed(() => [
   }
 ])
 
-// 分页配置
-const pagination = {
+// 分页配置（使用 reactive 确保响应式）
+const pagination = reactive({
   pageSize: 10,
   showSizePicker: true,
   pageSizes: [5, 10, 20, 50, 100],
-  showQuickJumper: true
-}
+  showQuickJumper: true,
+  onUpdatePageSize: (size) => {
+    pagination.pageSize = size
+  }
+})
 
 onMounted(async () => {
   await waitForWebRInit()
@@ -331,15 +396,19 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 5px;
+  padding: 0 5px 5px 5px;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .toolbar {
-  border-bottom: 1px solid #f3f3f356;
-  padding: 2px 5px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 4px 12px;
+  background-color: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
   flex-shrink: 0;
+  transition: all 0.2s ease;
+  align-items: center;
 }
 
 .table-container {

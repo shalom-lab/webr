@@ -1,6 +1,6 @@
 <template>
     <n-space justify="end">
-        <n-button text><n-icon size=20 :component="Clean" @click="termRef.clearLog()"></n-icon></n-button>
+        <n-button text><n-icon size=20 :component="Broom20Filled" @click="termRef.clearLog()"></n-icon></n-button>
     </n-space>
     <terminal :class="darkMode ? 'dark' : 'light'" ref='termRef' v-bind="config" @exec-cmd="runCode"></terminal>
 </template>
@@ -8,8 +8,8 @@
 <script setup>
 import Terminal from "vue-web-terminal"
 
-import { Clean } from "@vicons/carbon"
-import { onMounted, inject, ref, computed } from 'vue'
+import { Broom20Filled } from "@vicons/fluent"
+import { onMounted, inject, ref, computed, nextTick } from 'vue'
 import { useStore } from "vuex"
 import { useMessage } from "naive-ui"
 
@@ -36,35 +36,77 @@ onMounted(async () => {
     
     emitter.on('executeTerminalMethod', async ({ method, payload }) => {
         if (method == 'runCode') {
-            termRef.value.pushMessage('> ' + payload)
-            const result = await runR(payload)
-            console.log(result, payload)
-            if (result) {
-                if (result.images && result.images.length > 0) {
-                    addImages({ images: result.images })
-                    updateActivePanel({ activePanel: 'plots' })
+            // 确保 termRef 已初始化
+            if (!termRef.value) {
+                console.warn('Terminal ref 未初始化，跳过执行')
+                return
+            }
+            
+            try {
+                // 使用 nextTick 确保组件已更新
+                await nextTick()
+                if (termRef.value && typeof termRef.value.pushMessage === 'function') {
+                    // 使用标准消息格式
+                    termRef.value.pushMessage({
+                        type: 'normal',
+                        content: '> ' + payload,
+                        class: 'system'
+                    })
                 }
-                var msg = result.output ? result.output.map((output) => {
-                    let cla = null;
-                    switch (output.type) {
-                        case 'stdout':
-                            cla = '';
-                            break;
-                        case 'stderr':
-                            cla = 'error';
-                            break;
+                const result = await runR(payload)
+                console.log(result, payload)
+                
+                if (result) {
+                    if (result.images && result.images.length > 0) {
+                        addImages({ images: result.images })
+                        updateActivePanel({ activePanel: 'plots' })
                     }
-                    return { type: 'normal', content: output.data, class: cla }
-                }) : null
+                    var msg = result.output ? result.output.map((output) => {
+                        let cla = null;
+                        switch (output.type) {
+                            case 'stdout':
+                                cla = '';
+                                break;
+                            case 'stderr':
+                                cla = 'error';
+                                break;
+                        }
+                        return { type: 'normal', content: output.data, class: cla }
+                    }) : null
+                }
+                
+                const res = await runR(code.value.get_ls)
+                if (res && res.result) {
+                    const objs = await res.result.toJs()
+                    updateObjs({ objs })
+                    webR.destroy(res)
+                    webR.destroy(objs)
+                }
+                
+                if (msg && termRef.value && typeof termRef.value.pushMessage === 'function') {
+                    await nextTick()
+                    // pushMessage 可以接受数组，会逐条显示
+                    if (Array.isArray(msg)) {
+                        termRef.value.pushMessage(msg)
+                    } else {
+                        termRef.value.pushMessage([msg])
+                    }
+                }
+            } catch (error) {
+                console.error('执行代码时出错:', error)
+                try {
+                    await nextTick()
+                    if (termRef.value && typeof termRef.value.pushMessage === 'function') {
+                        termRef.value.pushMessage({ 
+                            type: 'normal', 
+                            content: `错误: ${error.message || '未知错误'}`, 
+                            class: 'error' 
+                        })
+                    }
+                } catch (pushError) {
+                    console.error('推送错误消息失败:', pushError)
+                }
             }
-            const res = await runR(code.value.get_ls)
-            if (res && res.result) {
-                const objs = await res.result.toJs()
-                updateObjs({ objs })
-                webR.destroy(res)
-                webR.destroy(objs)
-            }
-            if (msg) { termRef.value.pushMessage(msg) }
         }
     });
     
@@ -77,6 +119,11 @@ onMounted(async () => {
 
 // 等待 WebR 初始化完成
 async function waitForWebRInit() {
+    // 检查 webR 实例是否存在
+    if (!webR) {
+        throw new Error('WebR 实例不存在')
+    }
+    
     // 如果已经初始化，直接返回
     if (webR.objs && webR.objs.globalEnv) {
         return
@@ -88,13 +135,14 @@ async function waitForWebRInit() {
     const startTime = Date.now()
     
     while (Date.now() - startTime < maxWait) {
-        if (webR.objs && webR.objs.globalEnv) {
+        // 更严格的检查
+        if (webR && webR.objs && webR.objs.globalEnv) {
             return
         }
         await new Promise(resolve => setTimeout(resolve, interval))
     }
     
-    throw new Error('WebR 初始化超时')
+    throw new Error('WebR 初始化超时，请刷新页面重试')
 }
 
 // 启动输出读取循环
@@ -120,6 +168,12 @@ async function readOutputLoop() {
                 break;
             }
             
+            // 检查 termRef 是否可用
+            if (!termRef.value) {
+                console.warn('Terminal ref 不可用，停止读取输出')
+                break;
+            }
+            
             // 检查 read 方法是否存在
             if (typeof webR.read !== 'function') {
                 console.warn('webR.read() 方法不可用')
@@ -130,22 +184,51 @@ async function readOutputLoop() {
             
             // 如果收到 closed 消息，退出循环
             if (output && output.type === 'closed') {
-                termRef.value.pushMessage('WebR 连接已关闭')
+                if (termRef.value && typeof termRef.value.pushMessage === 'function') {
+                    await nextTick()
+                    termRef.value.pushMessage({
+                        type: 'normal',
+                        content: 'WebR 连接已关闭',
+                        class: 'warning'
+                    })
+                }
                 break;
             }
             
-            if (output) {
-                switch (output.type) {
-                    case 'stdout':
-                        termRef.value.pushMessage(output.data)
-                        break;
-                    case 'stderr':
-                        termRef.value.pushMessage({ type: 'normal', content: output.data, class: 'error' })
-                        break;
-                    case 'prompt':
-                        break;
-                    default:
-                        termRef.value.pushMessage(`Unhandled output type: ${output.type}.`)
+            if (output && termRef.value && typeof termRef.value.pushMessage === 'function') {
+                await nextTick()
+                try {
+                    switch (output.type) {
+                        case 'stdout':
+                            // 确保输出格式正确
+                            if (output.data) {
+                                termRef.value.pushMessage({
+                                    type: 'normal',
+                                    content: output.data
+                                })
+                            }
+                            break;
+                        case 'stderr':
+                            termRef.value.pushMessage({ 
+                                type: 'normal', 
+                                content: output.data || '', 
+                                class: 'error' 
+                            })
+                            break;
+                        case 'prompt':
+                            // 忽略提示符
+                            break;
+                        default:
+                            termRef.value.pushMessage({
+                                type: 'normal',
+                                content: `Unhandled output type: ${output.type}.`
+                            })
+                    }
+                } catch (pushError) {
+                    // 静默处理 pushMessage 错误，避免中断循环
+                    if (import.meta.env.DEV) {
+                        console.warn('推送消息失败:', pushError)
+                    }
                 }
             }
         } catch (error) {
@@ -155,7 +238,8 @@ async function readOutputLoop() {
                 error.message.includes('obj') ||
                 error.message.includes('channel') ||
                 error.message.includes('Cannot read properties') ||
-                error.message.includes('readConsole')
+                error.message.includes('readConsole') ||
+                error.message.includes('emitsOptions')
             )) {
                 // 这是 WebR 内部的错误，静默处理，不显示给用户
                 // 只在开发模式下记录日志
@@ -184,9 +268,15 @@ const config = {
 async function runR(code) {
     code = 'webr::shim_install() \n' + code
     try {
-        // 检查 WebR 是否已初始化
-        if (!webR.objs || !webR.objs.globalEnv) {
-            throw new Error('WebR 尚未初始化')
+        // 检查 WebR 是否已初始化（更严格的检查）
+        if (!webR) {
+            throw new Error('WebR 实例不存在')
+        }
+        if (!webR.objs) {
+            throw new Error('WebR 对象未初始化，请等待初始化完成')
+        }
+        if (!webR.objs.globalEnv) {
+            throw new Error('WebR 全局环境未初始化，请等待初始化完成')
         }
         
         const shelter = await new webR.Shelter();
@@ -228,7 +318,7 @@ async function runCode(key, command, success, failed) {
             
             const res = await runR(code.value.get_ls)
             if (res && res.result) {
-                await webR.evalRVoid("remove(list=ls(pattern='^webr_'))")
+                await webR.evalRVoid("remove(list=ls(pattern='^webr_|^_WEBR_'))")
                 const objs = await res.result.toJs()
                 updateObjs({ objs })
                 webR.destroy(res)
@@ -294,7 +384,7 @@ async function runCode(key, command, success, failed) {
 }
 
 .light {
-    font-size: 20px;
+    font-size: 14px;
     --t-main-background-color: #fff;
     --t-main-font-color: #000;
     --t-window-box-shadow: 0 0 40px 1px rgb(0 0 0 / 20%);

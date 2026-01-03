@@ -2,7 +2,8 @@ import { createStore } from 'vuex'
 
 const get_ls = `webr_objs<-ls()
 
-webr_objs<-webr_objs[!grepl('^webr_',webr_objs)]
+# 过滤掉内部使用的变量：webr_ 前缀和 _WEBR_ 前缀
+webr_objs<-webr_objs[!grepl('^webr_',webr_objs) & !grepl('^_WEBR_',webr_objs)]
 
 webr_dfs<-Filter(function(x) is.data.frame(get(x)),webr_objs)
 webr_fns<-Filter(function(x) is.function(get(x)),webr_objs)
@@ -39,7 +40,12 @@ const store = createStore({
             activePanel: 'files',
             activePlot: null,
             objs: null,
-            code: { get_ls }
+            code: { get_ls },
+            settings: {
+                darkMode: false,
+                topTabs: ['env'], // 右上显示的 tab 列表
+                bottomTabs: ['files', 'plots', 'packages', 'cache'] // 右下显示的 tab 列表
+            }
         }
     },
     getters: {
@@ -177,6 +183,9 @@ const store = createStore({
         },
         updateObjs(state, payload) {
             state.objs = payload.objs
+        },
+        updateSettings(state, payload) {
+            state.settings = { ...state.settings, ...payload }
         }
     }
 })

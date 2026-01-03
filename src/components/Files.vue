@@ -1,5 +1,5 @@
 <template>
-    <div class="box" style="padding:5px;box-sizing: border-box;height:100%">
+    <div class="box" style="padding:0 5px 5px 5px;box-sizing: border-box;height:100%">
         <n-space justify="space-between" class="toolbar">
             <n-breadcrumb>
                 <n-breadcrumb-item v-for="(item, i) in breadArr" :key="i" @click="navPath(i)">{{ item == '' ? '/' :
@@ -44,15 +44,18 @@
     <input ref="fileInput" type="file" style="display: none" multiple @change="handleFileChange">
     <n-modal v-model:show="showModalDelete" preset="dialog" title="确认" content="确认删除?" positive-text="确认"
         negative-text="取消" @positive-click="handeleDelete" />
+    <!-- 文件预览组件 -->
+    <Preview :file-path="previewFilePath" :show="showPreviewModal" @update:show="showPreviewModal = $event" />
 </template>
 
 <script setup>
-import { ref, computed, toRaw, inject, onMounted, watch } from "vue"
+import { ref, computed, toRaw, inject, onMounted, watch, h } from "vue"
 import { useStore } from 'vuex'
 import { Folder, FileTrayFullOutline } from "@vicons/ionicons5";
 import { NavigateNextFilled } from "@vicons/material"
-import { useMessage, NIcon, NGradientText, NTooltip, NButton } from "naive-ui";
+import { useMessage, NIcon, NGradientText, NTooltip, NButton, NModal } from "naive-ui";
 import { FolderAdd, DocumentAdd, LocationCurrent, Delete, Upload, Download, Save } from "@vicons/carbon"
+import Preview from '@/components/Preview.vue'
 import { saveData, fetchData } from '@/use/indexDB';
 const message = useMessage()
 const store = useStore()
@@ -150,6 +153,56 @@ const curTree = computed(() => {
         })
     }
 })
+// 预览文件相关状态
+const showPreviewModal = ref(false)
+const previewFilePath = ref(null)
+
+// 处理文件点击
+async function handleFileClick(fileName) {
+    // 获取文件扩展名（不区分大小写）
+    const extension = fileName.split('.').pop()?.toLowerCase()
+    
+    // .RData 文件：加载到R环境
+    if (extension === 'rdata') {
+        await loadRDataFile(fileName)
+        return
+    }
+    
+    // .R 文件：在编辑器中打开
+    if (extension === 'r') {
+        pushFilesOpen({ fileName })
+        updateActiveTabPane({ activeTabPane: fileName })
+        return
+    }
+    
+    // 其他文件：预览
+    await previewFileFunc(fileName)
+}
+
+// 加载 .RData 文件到R环境
+async function loadRDataFile(filePath) {
+    try {
+        const loadingMessage = message.loading('正在加载 RData 文件...', { duration: 0 })
+        
+        // 使用 R 的 load() 函数加载数据
+        const loadCode = `load("${filePath}")`
+        await webR.evalRVoid(loadCode)
+        
+        loadingMessage.destroy()
+        message.success('RData 文件加载成功，请查看环境面板')
+    } catch (error) {
+        message.destroyAll()
+        console.error('加载 RData 文件失败:', error)
+        message.error(`加载失败: ${error.message || '未知错误'}`)
+    }
+}
+
+// 预览文件
+async function previewFileFunc(filePath) {
+    previewFilePath.value = filePath
+    showPreviewModal.value = true
+}
+
 const nodeProps = ({ option }) => {
     return {
         onClick() {
@@ -157,8 +210,7 @@ const nodeProps = ({ option }) => {
                 curPath.value = breadArr.value.concat(option.key).join('/')
             } else {
                 const fileName = breadArr.value.concat(option.key).join('/')
-                pushFilesOpen({ fileName })
-                updateActiveTabPane({ activeTabPane: fileName })
+                handleFileClick(fileName)
             }
         }
     }
@@ -318,10 +370,15 @@ onMounted(async () => {
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-rows: 25px 1fr
+    grid-template-rows: auto 1fr
 }
 
 .toolbar {
-    border-bottom: 1px solid #f3f3f356;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 5px 12px;
+    background-color: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    transition: all 0.2s ease;
+    align-items: center;
 }
 </style>

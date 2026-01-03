@@ -30,8 +30,15 @@ export function saveData(obj) {
             const db = await openDatabase();
             const transaction = db.transaction([STORE_NAME], 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
+            
+            // 深度克隆并序列化数据，确保可以被 IndexedDB 存储
+            const dataToSave = {
+                id: obj.id,
+                data: JSON.parse(JSON.stringify(obj.data || obj))
+            };
+            
             // 添加数据到 IndexedDB
-            const request = store.put(obj );
+            const request = store.put(dataToSave);
             request.onsuccess = () => {
                 resolve('Data saved successfully');
             };

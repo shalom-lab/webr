@@ -8,6 +8,7 @@ import VueDevTools from 'vite-plugin-vue-devtools'
 // import { VitePWA } from 'vite-plugin-pwa' // PWA 功能暂时禁用
 
 export default defineConfig({
+  base: process.env.NODE_ENV === 'production' ? '/webr/' : '/',
   plugins: [
     vue(),
     AutoImport({

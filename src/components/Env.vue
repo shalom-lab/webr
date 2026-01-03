@@ -1,11 +1,12 @@
 <template>
   <div class="box">
     <n-space class="toolbar" justify="space-between">
-      <n-space></n-space>
+      <n-space>
+      </n-space>
       <n-space>
         <!-- <n-button text><n-icon size="20" :component="Upload" @click="saveFile"></n-icon></n-button> -->
         <n-button text><n-icon size="20" :component="Save" @click="saveToIndexDB(auto = false)"></n-icon></n-button>
-        <n-button text><n-icon size="20" :component="Clean" @click="showModal = true"></n-icon></n-button>
+        <n-button text><n-icon size="20" :component="Broom20Filled" @click="showModal = true"></n-icon></n-button>
       </n-space>
     </n-space>
     <n-tree block-line :data="objsTree" :show-line="false" :default-expanded-keys="expandedKeys" :node-props="nodeProps"
@@ -16,22 +17,23 @@
 </template>
 
 <script setup>
-import { computed, ref, toRaw, inject, onMounted, onUnmounted } from "vue";
+import { computed, ref, toRaw, inject, onMounted, onUnmounted, h } from "vue";
 import { useStore } from 'vuex'
 import { FilterListOutlined, AutoAwesomeOutlined, RemoveRedEyeSharp } from "@vicons/material"
-import { FunctionMath, DataTable, Save, Clean, Upload, Matrix } from "@vicons/carbon"
-import { useMessage, NIcon, NGradientText, NTooltip, NButton, NSpace, NGrid, NGridItem } from "naive-ui";
+import { FunctionMath, DataTable, Save, Upload, Matrix } from "@vicons/carbon"
+import { Broom20Filled } from "@vicons/fluent"
+import { useMessage, NIcon, NGradientText, NTooltip, NButton, NSpace, NGrid, NGridItem, NText } from "naive-ui";
 import { saveData, fetchData } from '@/use/indexDB';
 
 function renderIcon(icon) {
-  return () => h(NIcon, { style: { color: 'red' } }, { default: () => h(icon) });
+  return () => h(NIcon, { style: { color: 'red' } }, () => h(icon));
 }
 function renderLabel(t1, t2, t3, t4 = '') {
-  return () => h(NGrid, {
-    xGap: '0',
-    cols: '24'
-  }, () => [h(NGridItem, { span: 5 }, () => t1), h(NGridItem, { span: 5 }, () => t2), h(NGridItem, { span: 5 }, () => t3),
-  h(NGridItem, { span: 9 }, () => t4)
+  return () => h('div', { style: 'display: flex; gap: 8px;' }, [
+    h('span', { style: 'flex: 0 0 20%;' }, t1),
+    h('span', { style: 'flex: 0 0 20%;' }, t2),
+    h('span', { style: 'flex: 0 0 20%;' }, t3),
+    h('span', { style: 'flex: 0 0 40%;' }, t4)
   ])
 }
 
@@ -137,6 +139,17 @@ const saveToIndexDB = async (auto = true) => {
 
 async function runR(code) {
   try {
+    // 更严格的检查
+    if (!webR) {
+      throw new Error('WebR 实例不存在')
+    }
+    if (!webR.objs) {
+      throw new Error('WebR 对象未初始化，请等待初始化完成')
+    }
+    if (!webR.objs.globalEnv) {
+      throw new Error('WebR 全局环境未初始化，请等待初始化完成')
+    }
+    
     const shelter = await new webR.Shelter();
     const result = await shelter.captureR(code, {
       withAutoprint: true,
@@ -177,6 +190,11 @@ onMounted(async () => {
 
 // 等待 WebR 初始化完成
 async function waitForWebRInit() {
+  // 检查 webR 实例是否存在
+  if (!webR) {
+    throw new Error('WebR 实例不存在')
+  }
+  
   // 如果已经初始化，直接返回
   if (webR.objs && webR.objs.globalEnv) {
     return
@@ -188,13 +206,14 @@ async function waitForWebRInit() {
   const startTime = Date.now()
   
   while (Date.now() - startTime < maxWait) {
-    if (webR.objs && webR.objs.globalEnv) {
+    // 更严格的检查
+    if (webR && webR.objs && webR.objs.globalEnv) {
       return
     }
     await new Promise(resolve => setTimeout(resolve, interval))
   }
   
-  throw new Error('WebR 初始化超时')
+  throw new Error('WebR 初始化超时，请刷新页面重试')
 }
 
 // 加载 R 数据
@@ -235,10 +254,18 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-rows: 25px 1fr
+  grid-template-rows: auto 1fr;
+  padding: 0 5px 5px 5px;
+  box-sizing: border-box;
 }
 
 .toolbar {
-  border-bottom: 1px solid #f3f3f356;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0px 12px;
+  background-color: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  align-items: center;
 }
 </style>

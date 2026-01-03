@@ -1,5 +1,5 @@
 <template>
-    <div class="box" style="padding:5px;box-sizing: border-box;height:100%">
+    <div class="box" style="padding:0 5px 5px 5px;box-sizing: border-box;height:100%">
         <n-space size="large" justify="space-between" class="toolbar">
             <n-space>
                 <n-button text @click="go(-1)" :disabled="imagesList.length == 0 || activePlot == 0">
@@ -15,7 +15,7 @@
             </n-space>
             <n-space justify="end">
                 <n-button text :disabled="imagesList.length == 0" @click="showModalClean = true">
-                    <n-icon size="20" :component="Clean" />
+                    <n-icon size="20" :component="Broom20Filled" />
                 </n-button>
             </n-space>
         </n-space>
@@ -48,7 +48,7 @@
             </template>
             <div class="resizable" :style="{ width: width + 'px', height: height + 'px' }">
                 <div class="content">
-                    <Canvas :imageBitmap="imageBitmap"></Canvas>
+                    <Canvas :imageBitmap="imageBitmap" :width="width" :height="height"></Canvas>
                 </div>
                 <div class="resize-handle" @mousedown="startResize"></div>
             </div>
@@ -60,18 +60,49 @@
 
 <script setup>
 import Canvas from "@/components/Canvas.vue"
-import { ref, computed } from "vue"
+import { ref, computed, watch, inject } from "vue"
 import { useStore } from 'vuex'
-import { PreviousOutline, NextOutline, ZoomIn, Clean, Export, Close, Download } from "@vicons/carbon"
+import { PreviousOutline, NextOutline, ZoomIn, Export, Close, Download } from "@vicons/carbon"
+import { Broom20Filled } from "@vicons/fluent"
 
 const store = useStore()
 const imagesList = computed(() => store.getters.imagesList)
 const activePlot = computed(() => store.state.activePlot)
 const imageBitmap = computed(() => {
-    return imagesList.value[activePlot.value].data
+    return imagesList.value[activePlot.value]?.data
 })
+
+// 获取 emitter 用于触发 tab 激活
+const emitter = inject('emitter', null)
+
 function updateActivePlot(payload) { store.commit('updateActivePlot', payload) }
 function clearImages() { store.commit('clearImages') }
+
+// 监听图片列表变化，当有新图时自动激活 Plots tab
+const previousImagesLength = ref(0)
+watch(imagesList, (newList, oldList) => {
+    const currentLength = newList.length
+    const previousLength = previousImagesLength.value
+    
+    // 如果有新图添加（数量增加）
+    if (currentLength > previousLength && currentLength > 0) {
+        // 检查 Plots 是否在配置的 tabs 中
+        const topTabs = store.state.settings?.topTabs || []
+        const bottomTabs = store.state.settings?.bottomTabs || []
+        
+        // 如果 Plots 在 topTabs 或 bottomTabs 中，触发激活事件
+        if (topTabs.includes('plots') || bottomTabs.includes('plots')) {
+            // 使用 nextTick 确保 DOM 更新完成
+            setTimeout(() => {
+                if (emitter) {
+                    emitter.emit('activatePlotsTab')
+                }
+            }, 100)
+        }
+    }
+    
+    previousImagesLength.value = currentLength
+}, { immediate: true })
 
 function go(i) { updateActivePlot({ activePlot: activePlot.value + i }) }
 const showModal = ref(false)
@@ -83,30 +114,71 @@ const height = ref(600);
 const isResizing = ref(false);
 
 const startResize = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    
     isResizing.value = true;
     const startX = event.clientX;
     const startY = event.clientY;
     const initialWidth = width.value;
     const initialHeight = height.value;
+    
+    // 禁用文本选择，提升体验
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'se-resize'
+
+    let rafId = null
 
     const onMouseMove = (event) => {
         if (!isResizing.value) return;
-        const deltaX = event.clientX - startX;
-        const deltaY = event.clientY - startY;
-        width.value = initialWidth + deltaX;
-        height.value = initialHeight + deltaY;
+        
         event.preventDefault()
+        event.stopPropagation()
+        
+        // 防抖：取消之前的动画帧请求
+        if (rafId) {
+            cancelAnimationFrame(rafId)
+        }
+        
+        // 节流：使用 requestAnimationFrame 确保流畅更新（约60fps）
+        rafId = requestAnimationFrame(() => {
+            const deltaX = event.clientX - startX;
+            const deltaY = event.clientY - startY;
+            
+            // 限制最小尺寸
+            const newWidth = Math.max(200, initialWidth + deltaX);
+            const newHeight = Math.max(200, initialHeight + deltaY);
+            
+            width.value = newWidth;
+            height.value = newHeight;
+            
+            rafId = null
+        })
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        
         isResizing.value = false;
+        
+        // 恢复样式
+        document.body.style.userSelect = ''
+        document.body.style.cursor = ''
+        
+        // 清理
+        if (rafId) {
+            cancelAnimationFrame(rafId)
+            rafId = null
+        }
+        
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        event.preventDefault()
     };
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    // 使用 passive: false 以便调用 preventDefault
+    window.addEventListener('mousemove', onMouseMove, { passive: false });
+    window.addEventListener('mouseup', onMouseUp, { passive: false });
 };
 
 async function downloadImage() {
@@ -163,11 +235,19 @@ async function downloadImage() {
 
 .resize-handle {
     position: absolute;
-    width: 10px;
-    height: 10px;
-    background-color: black;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, rgba(56, 141, 207, 0.8) 0%, rgba(45, 183, 201, 0.8) 100%);
+    border-radius: 4px 0 12px 0;
     bottom: 0;
     right: 0;
     cursor: se-resize;
+    box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.resize-handle:hover {
+    background: linear-gradient(135deg, rgba(56, 141, 207, 1) 0%, rgba(45, 183, 201, 1) 100%);
+    transform: scale(1.1);
 }
 </style>

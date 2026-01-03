@@ -204,7 +204,10 @@ export async function loadTutorialFiles(webR, onProgress) {
     for (const fileName of tutorialFiles) {
       try {
         // 从 public/tutorial 目录读取文件
-        const response = await fetch(`/tutorial/${encodeURIComponent(fileName)}`)
+        // 使用 import.meta.env.BASE_URL 来适配 GitHub Pages 的 base 路径
+        const baseUrl = import.meta.env.BASE_URL || '/'
+        const tutorialPath = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
+        const response = await fetch(`${tutorialPath}/tutorial/${encodeURIComponent(fileName)}`)
         
         if (!response.ok) {
           console.warn(`无法加载教程文件: ${fileName} (${response.status})`)

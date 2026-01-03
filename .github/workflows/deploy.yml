@@ -28,8 +28,6 @@ jobs:
       
       - name: Build project
         run: npm run build
-        env:
-          NODE_ENV: production
       
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -38,10 +36,18 @@ jobs:
           path: dist
           retention-days: 7
       
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/master'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+      
       - name: Build summary
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- Build completed successfully" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "- Deployed to GitHub Pages" >> $GITHUB_STEP_SUMMARY
           echo "- Triggered by: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
 

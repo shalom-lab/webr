@@ -225,3 +225,6 @@ model_interaction <- glm(y ~ x1 * x2, family = binomial)
 summary(model_interaction)
 
 
+
+
+

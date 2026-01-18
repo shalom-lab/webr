@@ -59,3 +59,6 @@ rownames(df)     # 行名
 subset(df, age > 30)  # 子集
 
 
+
+
+

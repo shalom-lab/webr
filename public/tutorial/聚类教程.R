@@ -242,3 +242,6 @@ barplot(table(kmeans_result$cluster),
 par(mfrow = c(1, 1))
 
 
+
+
+

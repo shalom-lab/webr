@@ -213,3 +213,6 @@ summary(model_cars)$adj.r.squared
 formula(model_cars)
 
 
+
+
+

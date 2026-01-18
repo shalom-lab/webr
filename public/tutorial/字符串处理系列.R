@@ -214,3 +214,6 @@ messages <- gsub(".*: ", "", log_lines)
 messages
 
 
+
+
+
